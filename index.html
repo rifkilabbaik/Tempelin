@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tempelin — Upload Laporan ke Spreadsheet</title>
+<meta name="description" content="Unggah file laporan Grand Total All Store ke Google Spreadsheet, banyak file sekaligus, tanpa data ganda.">
+<meta name="theme-color" content="#0d5c44">
+<link rel="manifest" href="assets/manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <img class="topbar__logo" src="assets/icon-192.png" alt="" width="36" height="36">
+  <div class="topbar__text">
+    <h1>Tempelin</h1>
+    <p>Laporan penjualan &rarr; Google Spreadsheet</p>
+  </div>
+  <span id="netStatus" class="pill pill--muted" title="Status koneksi">•</span>
+  <button id="installBtn" class="btn btn--ghost" hidden>Pasang aplikasi</button>
+</header>
+
+<main class="wrap">
+
+  <!-- ---------------------------------------------------------- pengaturan -->
+  <section class="card">
+    <details id="settings">
+      <summary>
+        <span class="summary__title">Pengaturan tujuan</span>
+        <span id="settingsSummary" class="summary__hint"></span>
+      </summary>
+
+      <div class="grid">
+        <label class="field field--wide">
+          <span class="field__label">URL Apps Script (/exec)</span>
+          <input id="endpoint" type="url" inputmode="url" spellcheck="false"
+                 placeholder="https://script.google.com/macros/s/.../exec">
+          <span class="field__hint">Web app yang menulis ke spreadsheet. Deploy dengan akses <em>Anyone</em>.</span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Nama sheet</span>
+          <input id="sheetName" type="text" spellcheck="false" placeholder="Sales">
+          <span class="field__hint">Sheet tujuan di dalam spreadsheet.</span>
+        </label>
+
+        <label class="field field--wide">
+          <span class="field__label">Tautan spreadsheet (opsional)</span>
+          <input id="sheetUrl" type="url" inputmode="url" spellcheck="false"
+                 placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+          <span class="field__hint">Dipakai untuk tombol &ldquo;Buka spreadsheet&rdquo;.</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="testBtn" class="btn btn--ghost">Tes koneksi</button>
+        <button id="diagBtn" class="btn btn--ghost">Periksa kolom sheet</button>
+        <a id="openSheet" class="btn btn--ghost" href="#" target="_blank" rel="noopener">Buka spreadsheet</a>
+      </div>
+      <p class="note">Pengaturan disimpan di perangkat ini saja (localStorage).</p>
+    </details>
+  </section>
+
+  <!-- ---------------------------------------------------------------- drop -->
+  <section class="card">
+    <div id="drop" class="drop" tabindex="0" role="button"
+         aria-label="Pilih atau jatuhkan file laporan">
+      <svg class="drop__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <p class="drop__title">Jatuhkan file laporan di sini</p>
+      <p class="drop__sub">atau ketuk untuk memilih &mdash; bisa banyak file sekaligus</p>
+      <p class="drop__hint">
+        Tanggal dibaca dari nama file, contoh
+        <code>Grand_Total_All_Store_<b>20260722</b>_20260722.xls</code>
+      </p>
+      <input id="fileInput" type="file" multiple accept=".xls,.xlsx,.htm,.html,text/html" hidden>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------------- daftar -->
+  <section id="listCard" class="card" hidden>
+    <div class="card__head">
+      <h2>File terbaca <span id="fileCount" class="badge"></span></h2>
+      <button id="clearBtn" class="btn btn--ghost btn--sm">Bersihkan</button>
+    </div>
+
+    <div class="tablewrap">
+      <table class="files">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th class="num">Tanggal</th>
+            <th class="num">Baris</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="fileRows"></tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button id="checkBtn" class="btn btn--ghost">Cek dulu (tanpa menulis)</button>
+      <button id="uploadBtn" class="btn btn--primary">Upload ke spreadsheet</button>
+    </div>
+
+    <div id="progressWrap" class="progress" hidden>
+      <div id="progressBar" class="progress__bar"></div>
+    </div>
+    <p id="progressText" class="note" hidden></p>
+  </section>
+
+  <!-- -------------------------------------------------------------- ringkas -->
+  <section id="summaryCard" class="card" hidden>
+    <h2>Ringkasan</h2>
+    <div class="stats">
+      <div class="stat"><span id="statNew" class="stat__num">0</span><span class="stat__lbl">baris baru</span></div>
+      <div class="stat"><span id="statSkip" class="stat__num">0</span><span class="stat__lbl">sudah ada</span></div>
+      <div class="stat"><span id="statFiles" class="stat__num">0</span><span class="stat__lbl">file diproses</span></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ log -->
+  <section id="logCard" class="card" hidden>
+    <div class="card__head">
+      <h2>Catatan proses</h2>
+      <button id="logClear" class="btn btn--ghost btn--sm">Kosongkan</button>
+    </div>
+    <div id="log" class="log" role="log" aria-live="polite"></div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      Baris dikenali dari <b>Tanggal + Toko</b>. Baris yang sudah ada di sheet dilewati,
+      jadi file yang sama aman diunggah ulang.
+    </p>
+  </footer>
+</main>
+
+<script src="assets/parser.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
